@@ -5,7 +5,7 @@
 
 Build the core ledger as a **strongly consistent, append-only, double-entry posting engine** on **Amazon Aurora PostgreSQL**, with stateless services on **Amazon EKS**, a **transactional outbox**, and **Amazon MSK** for downstream events. Keep Aurora as the sole financial system of record; treat Kafka, search, reporting, and customer-facing balance views as derived projections that can be rebuilt from committed ledger data.
 
-Do **not** use Amazon QLDB for a new implementation. Older AWS core-banking guidance used QLDB, but AWS ended QLDB support on July 31, 2025. Aurora PostgreSQL is the practical replacement: AWS documents its use for core banking, and Aurora stores data across six storage nodes in three Availability Zones.[1][2][3][4]
+Do **not** use Amazon QLDB for a new implementation. Older AWS core-banking guidance used QLDB, but AWS ended QLDB support on July 31, 2025. Aurora PostgreSQL is the practical replacement: AWS documents its use for core banking, and Aurora stores data across six storage nodes in three Availability Zones.
 
 The recommended baseline assumes:
 
@@ -21,7 +21,7 @@ The recommended baseline assumes:
 2. **Double entry is enforced, not assumed.** Every posted transaction must balance by ledger, currency, and value date; unbalanced transactions must fail before commit.
 3. **Posted history is never edited.** Corrections use linked reversal and replacement transactions. Application roles receive no `UPDATE` or `DELETE` rights over posted journals.
 4. **One authoritative writer.** A single active Region owns posting. The DR Region must remain read-only until a controlled failover fences the old writer.
-5. **Events are consequences of commits.** Never publish an event and update the ledger as separate, uncoordinated writes. AWS recommends transactional outbox or CDC for this dual-write problem and warns that consumers must handle duplicate messages.[5][6]
+5. **Events are consequences of commits.** Never publish an event and update the ledger as separate, uncoordinated writes. AWS recommends transactional outbox or CDC for this dual-write problem and warns that consumers must handle duplicate messages.
 6. **Exactly-once financial effect, at-least-once delivery.** Idempotency and database uniqueness guarantee one posting effect; messaging may redeliver, so every consumer deduplicates by immutable event ID.
 7. **Reads do not endanger posting.** Statements, search, analytics, fraud features, and regulatory reports use replicas or independently built projections.
 8. **Reconciliation is a first-class service.** Continuously prove that journal legs balance, balances equal journal-derived positions, events match committed postings, and external settlement totals match internal records.
@@ -75,18 +75,18 @@ AWS recommends multi-AZ EKS deployments, private worker subnets, and topology sp
 
 | Capability | Recommended service | Reason and constraint |
 |---|---|---|
-| External API | API Gateway + WAF | Authentication, throttling, schema controls, request limits, and perimeter protection; AWS core-banking guidance places API Gateway and WAF at the API boundary.[1] |
-| Transaction services | EKS across three AZs | Suitable for long-running, low-latency services and existing platform engineering practices; spread replicas and retain enough capacity after loss of one AZ.[10][11] |
-| Ledger system of record | Aurora PostgreSQL provisioned cluster | ACID relational transactions, constraints, SQL auditability, mature PostgreSQL tooling, Multi-AZ resilience, readers, backups, and Global Database DR.[2][8] |
+| External API | API Gateway + WAF | Authentication, throttling, schema controls, request limits, and perimeter protection; AWS core-banking guidance places API Gateway and WAF at the API boundary. |
+| Transaction services | EKS across three AZs | Suitable for long-running, low-latency services and existing platform engineering practices; spread replicas and retain enough capacity after loss of one AZ. |
+| Ledger system of record | Aurora PostgreSQL provisioned cluster | ACID relational transactions, constraints, SQL auditability, mature PostgreSQL tooling, Multi-AZ resilience, readers, backups, and Global Database DR. |
 | Connection management | RDS Proxy | Protects the writer from pod-driven connection storms; use bounded application pools and explicit transaction timeouts. |
-| Event backbone | Amazon MSK | Durable ordered streams, replay, independent consumer scaling, and per-key ordering when records for the same account or transaction use the same partition key.[12] |
+| Event backbone | Amazon MSK | Durable ordered streams, replay, independent consumer scaling, and per-key ordering when records for the same account or transaction use the same partition key. |
 | Atomic event publication | Outbox table + relay | Ledger rows and outbox row commit together; relay publication is retryable and consumers remain idempotent.[5] |
-| Workflow | Step Functions | Use for account opening, settlement, exception handling, and other multi-service sagas—not for the atomic ledger posting itself. AWS recommends idempotent saga participants.[13] |
+| Workflow | Step Functions | Use for account opening, settlement, exception handling, and other multi-service sagas—not for the atomic ledger posting itself. AWS recommends idempotent saga participants. |
 | Operational cache | ElastiCache | Cache reference data, limits, or derived views only. Never make Redis the source of truth for balances. |
 | Audit archive | S3 with versioning, Object Lock, KMS | Store immutable exports, reconciliations, deployment evidence, database audit logs, and daily signed ledger digests. |
-| Security telemetry | CloudTrail, Config, GuardDuty, Security Hub, CloudWatch | Centralized preventive and detective controls across accounts. AWS’s financial-services guidance recommends Organizations and Control Tower for governed multi-account environments.[14][15] |
-| Observability | ADOT/OpenTelemetry + CloudWatch Application Signals | Collect metrics, logs, traces, dependency telemetry, and SLOs from EKS workloads.[16][17][18] |
-| Card cryptography, if needed | AWS Payment Cryptography | Managed payment cryptography aligned to PCI PIN, P2PE, and PCI DSS, backed by PCI PTS HSM and FIPS-certified hardware.[19] |
+| Security telemetry | CloudTrail, Config, GuardDuty, Security Hub, CloudWatch | Centralized preventive and detective controls across accounts. AWS’s financial-services guidance recommends Organizations and Control Tower for governed multi-account environments. |
+| Observability | ADOT/OpenTelemetry + CloudWatch Application Signals | Collect metrics, logs, traces, dependency telemetry, and SLOs from EKS workloads. |
+| Card cryptography, if needed | AWS Payment Cryptography | Managed payment cryptography aligned to PCI PIN, P2PE, and PCI DSS, backed by PCI PTS HSM and FIPS-certified hardware. |
 
 ## Account and network layout
 
@@ -102,7 +102,7 @@ Use AWS Organizations and Control Tower with separate accounts for:
 - Production data and analytics.
 - Disaster recovery.
 
-Production and non-production must be isolated at the account, IAM, network, encryption-key, and data levels. AWS’s Financial Services Industry Lens recommends separate production and non-production accounts and SCPs to constrain actions.[20]
+Production and non-production must be isolated at the account, IAM, network, encryption-key, and data levels. AWS’s Financial Services Industry Lens recommends separate production and non-production accounts and SCPs to constrain actions.
 
 Within each workload Region:
 
@@ -170,7 +170,7 @@ The critical synchronous path should contain as few network calls as possible:
 11. It commits once and returns the immutable transaction ID and status.
 12. The outbox relay publishes to MSK after commit. A crash may cause republishing, so consumers deduplicate by event ID.
 
-Use stable idempotency keys and uniqueness constraints rather than trying to guarantee exactly one network execution. AWS guidance describes idempotent writes through conditional inserts, transactional check-and-write, and deterministic event IDs in append-only logs.[21]
+Use stable idempotency keys and uniqueness constraints rather than trying to guarantee exactly one network execution. AWS guidance describes idempotent writes through conditional inserts, transactional check-and-write, and deterministic event IDs in append-only logs.
 
 ### Example API contract
 
@@ -209,7 +209,7 @@ Publish versioned domain events such as:
 
 Partition events by the ordering boundary required by the consumer—usually account ID for account balance projections, and transaction ID for transaction workflows. Maintain `event_id`, `aggregate_id`, `aggregate_sequence`, `occurred_at`, `committed_at`, `schema_version`, `trace_id`, and source ledger metadata in every envelope.
 
-Downstream consumers must maintain a processed-event table or equivalent conditional-write record. Kafka transactions can improve processing guarantees inside the Kafka pipeline, but they do not replace ledger-side idempotency for database or external side effects.[12]
+Downstream consumers must maintain a processed-event table or equivalent conditional-write record. Kafka transactions can improve processing guarantees inside the Kafka pipeline, but they do not replace ledger-side idempotency for database or external side effects.
 
 Recommended projections are:
 
@@ -236,9 +236,9 @@ A projection lag must never change the posting outcome. If a caller requires the
 
 ### Encryption and keys
 
-Encrypt Aurora, MSK, EBS, S3, backups, logs, and secrets with customer-managed KMS keys. AWS’s PCI guidance recommends KMS for native service integration and CloudHSM when dedicated single-tenant hardware, exportable key material, or a specific compliance mandate is required; CloudTrail records KMS and CloudHSM API activity.[22][23]
+Encrypt Aurora, MSK, EBS, S3, backups, logs, and secrets with customer-managed KMS keys. AWS’s PCI guidance recommends KMS for native service integration and CloudHSM when dedicated single-tenant hardware, exportable key material, or a specific compliance mandate is required; CloudTrail records KMS and CloudHSM API activity.
 
-Use TLS for all service and database connections, automatic certificate rotation, separate keys by environment and data classification, restrictive key policies, and tested key-recovery procedures. If card PIN or payment-network cryptography is in scope, use AWS Payment Cryptography rather than implementing those operations in application code.[19]
+Use TLS for all service and database connections, automatic certificate rotation, separate keys by environment and data classification, restrictive key policies, and tested key-recovery procedures. If card PIN or payment-network cryptography is in scope, use AWS Payment Cryptography rather than implementing those operations in application code.
 
 ### Auditability
 
@@ -252,7 +252,7 @@ Create multiple independent audit layers:
 - Config snapshots, IAM Access Analyzer findings, Security Hub findings, and change tickets.
 - Reconciliation evidence retained according to legal and regulatory policy.
 
-A relational append-only design does not automatically provide QLDB’s former built-in hash-chain verification. If cryptographic tamper evidence is required, implement and independently review a digest scheme—for example, deterministic canonical transaction serialization, per-batch Merkle roots, KMS signatures, and Object-Locked storage—rather than claiming database immutability alone provides cryptographic proof. QLDB’s former verification used sequenced hash-chained blocks, digests, and Merkle proofs, but that service is no longer supported.[24][25]
+A relational append-only design does not automatically provide QLDB’s former built-in hash-chain verification. If cryptographic tamper evidence is required, implement and independently review a digest scheme—for example, deterministic canonical transaction serialization, per-batch Merkle roots, KMS signatures, and Object-Locked storage—rather than claiming database immutability alone provides cryptographic proof. QLDB’s former verification used sequenced hash-chained blocks, digests, and Merkle proofs, but that service is no longer supported.
 
 ## Availability and disaster recovery
 
@@ -263,11 +263,11 @@ A relational append-only design does not automatically provide QLDB’s former b
 - Maintain enough reserved or pre-scaled capacity to serve traffic after losing one AZ.
 - Deploy an Aurora writer plus at least two appropriately sized readers in separate AZs.
 - Configure RDS Proxy, conservative pool limits, statement and lock timeouts, and circuit breakers.
-- Exercise EKS zonal shift and prove the platform runs with one AZ removed; AWS explicitly recommends this testing.[10][11]
+- Exercise EKS zonal shift and prove the platform runs with one AZ removed; AWS explicitly recommends this testing.
 
 ### Cross-Region DR
 
-Use Aurora Global Database with asynchronous replication to a secondary Region. AWS states that Global Database RTO can be in the order of minutes and RPO is typically measured in seconds; Aurora PostgreSQL can enforce an RPO upper bound, but doing so may block or affect primary-writer transaction processing.[26]
+Use Aurora Global Database with asynchronous replication to a secondary Region. AWS states that Global Database RTO can be in the order of minutes and RPO is typically measured in seconds; Aurora PostgreSQL can enforce an RPO upper bound, but doing so may block or affect primary-writer transaction processing.
 
 Recommended DR policy:
 
@@ -278,11 +278,11 @@ Recommended DR policy:
 - Never run active-active posting against two independent relational primaries. This introduces split-brain and irreconcilable balance risks.
 - After recovery, reconcile the last confirmed transaction sequence, all outbox events, external payment acknowledgements, and any accepted-but-uncommitted requests.
 
-Both Aurora PostgreSQL and Aurora MySQL are listed in Sydney and Melbourne, but exact engine-version and Global Database feature compatibility must be confirmed during detailed design. AWS documentation states Australian customers may choose Sydney or Melbourne for onshore deployment, subject to their own regulatory decisions.[27][28][29]
+Both Aurora PostgreSQL and Aurora MySQL are listed in Sydney and Melbourne, but exact engine-version and Global Database feature compatibility must be confirmed during detailed design. AWS documentation states Australian customers may choose Sydney or Melbourne for onshore deployment, subject to their own regulatory decisions.
 
 ## Backup and recovery
 
-- Configure continuous Aurora backups and the maximum business-approved retention, up to the service’s supported 35 days.[8]
+- Configure continuous Aurora backups and the maximum business-approved retention, up to the service’s supported 35 days.
 - Take immutable pre-release snapshots and cross-account/cross-Region copies based on policy.
 - Export long-term ledger, reconciliation, and audit evidence to S3 with retention controls.
 - Run automated restore tests into an isolated account; a backup is not proven until restoration and accounting reconciliation pass.
@@ -291,7 +291,7 @@ Both Aurora PostgreSQL and Aurora MySQL are listed in Sydney and Melbourne, but 
 
 ## Observability and controls
 
-Collect technical and business telemetry with OpenTelemetry/ADOT. CloudWatch Application Signals can provide call volume, availability, latency, faults, errors, dependencies, and SLO monitoring for EKS applications.[30][18]
+Collect technical and business telemetry with OpenTelemetry/ADOT. CloudWatch Application Signals can provide call volume, availability, latency, faults, errors, dependencies, and SLO monitoring for EKS applications.
 
 ### Proposed SLOs
 
