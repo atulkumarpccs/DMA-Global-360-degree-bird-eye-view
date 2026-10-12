@@ -69,7 +69,7 @@ flowchart LR
     R53[Route 53 / AWS ARC controlled failover] --> APIGW
 ```
 
-AWS recommends multi-AZ EKS deployments, private worker subnets, and topology spread constraints; managed node groups can distribute nodes across AZs. Aurora provides automated failover to replicas, fault-tolerant storage across three AZs, continuous incremental backups, and point-in-time recovery during the configured retention period.[7][8][9]
+AWS recommends multi-AZ EKS deployments, private worker subnets, and topology spread constraints; managed node groups can distribute nodes across AZs. Aurora provides automated failover to replicas, fault-tolerant storage across three AZs, continuous incremental backups, and point-in-time recovery during the configured retention period.
 
 ### Service selection
 
